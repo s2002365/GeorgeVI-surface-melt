@@ -6,16 +6,15 @@ import os
 import os.path
 from os import path
 import subprocess
-#from osgeo import gdal
 from pyroSAR import identify
 #import faulthandler; faulthandler.enable()
 
-dem = "/home/s2002365/Dissertation/code/data/DEM/REMA_200m_resampled_20m.dem"
-dem_par = "/home/s2002365/Dissertation/code/data/DEM/REMA_200m_resampled_20m.dem_par"
-outdir = "/home/s2002365/Dissertation/code/data/s1_grd/s1_grd_processed/grd_processed"
-rootdir = '/home/s2002365/Dissertation/code/data/s1_grd/test/'
-study_area = '/home/s2002365/Dissertation/code/study_area/study_area_square.shp'
-surplus_files = '/home/s2002365/Dissertation/code/data/s1_grd/s1_grd_processed/to_be_deleted/'
+dem = "/exports/csce/datastore/geos/groups/MSCGIS/s2002365/code/data/DEM/REMA_resampled_10m.dem"
+dem_par = "/exports/csce/datastore/geos/groups/MSCGIS/s2002365/code/data/DEM/REMA_resampled_10m.dem_par"
+outdir = "/exports/csce/datastore/geos/groups/MSCGIS/s2002365/code/data/s1_grd/s1_grd_processed/grd_processed"
+rootdir = '/exports/csce/datastore/geos/groups/MSCGIS/s2002365/code/data/s1_grd/'
+study_area = '/exports/csce/datastore/geos/groups/MSCGIS/s2002365/code/study_area/study_area_square.shp'
+surplus_files = '/exports/csce/datastore/geos/groups/MSCGIS/s2002365/code/data/s1_grd/s1_grd_processed/to_be_deleted/'
 
 def unzip(): 
 
@@ -41,8 +40,7 @@ def mk_POEORB_dir():
         if dirname.endswith(".SAFE"):
             if not path.exists(f"{rootdir}{dirname}/osv/"):
                 os.makedirs(f"{rootdir}{dirname}/osv/")
-                print(f"Directories for orbit files created {dirname}/osv/.")
-
+                print("Directories for orbit files created.")
 
 def downloadOSV(): 
 
@@ -55,9 +53,18 @@ def downloadOSV():
                 platform = str(dirname)[:3]
                 year = str(dirname)[17:21]
                 month = str(dirname)[21:23]
+                day = str(dirname)[23:25]
                 id = identify(scene)
                 id.getOSV(osvdir=f'{rootdir}{filename}.SAFE/osv/', osvType='POE') #downloads OSV file as a zip file located in {rootdir}/POEORB/S1B/2019/05/
-                unzip = f"unzip {rootdir}{filename}.SAFE/osv/POEORB/{platform}/{year}/{month}/*.zip -d {rootdir}{filename}.SAFE/osv/POEORB"
+                if day != "01":
+                    unzip = f"unzip {rootdir}{filename}.SAFE/osv/POEORB/{platform}/{year}/{month}/*.zip -d {rootdir}{filename}.SAFE/osv/POEORB"
+                else:
+                    pre_month = int(month)-1
+                    if pre_month > 9:
+                        orb_month = str(pre_month)
+                    else:
+                        orb_month = '0'+ str(pre_month)
+                    unzip = f"unzip {rootdir}{filename}.SAFE/osv/POEORB/{platform}/{year}/{orb_month}/*.zip -d {rootdir}{filename}.SAFE/osv/POEORB"
                 os.system(unzip)
             else: 
                 print(f"Correct file structure for OSV files does not exist: {dirname}.")
@@ -75,21 +82,21 @@ def processGRD():
                 filenameHH = filename.replace("1ssh","hh").replace("grdh","grd")
 
                 #Generate MLI and GRD images and parameter files from a Sentinel-1 GRD product
-                par_command1= f"par_S1_GRD {dir}/measurement/{filenameHH}-001.tiff {dir}/annotation/{filenameHH}-001.xml {dir}/annotation/calibration/calibration-{filenameHH}-001.xml - {dir}/{filenameHH}_HH_grd.par {dir}/{filenameHH}_HH_grd - - - - -"
-                os.system(par_command1)
+                par_command= f"par_S1_GRD {dir}/measurement/{filenameHH}-001.tiff {dir}/annotation/{filenameHH}-001.xml {dir}/annotation/calibration/calibration-{filenameHH}-001.xml - {dir}/{filenameHH}_HH_grd.par {dir}/{filenameHH}_HH_grd - - - - -"
+                os.system(par_command)
 
                 # correct orb files must be allocated beforehand in SAFE folder (/osv/POEORB) 
                 for file in os.listdir(f'{dir}/osv/POEORB/'):
                     if file.endswith("EOF"):
-                        orb = file
+                        orb = str(file)
 
                 #Extract Sentinel-1 OPOD state vectors and copy into the ISP image parameter file
-                opod1 = f"S1_OPOD_vec {dir}/{filenameHH}_HH_grd.par {dir}/osv/POEORB/{orb} -"
-                os.system(opod1)
+                opod = f"S1_OPOD_vec {dir}/{filenameHH}_HH_grd.par {dir}/osv/POEORB/{orb} -"
+                os.system(opod)
 
                 #Multi-looking of intensity (MLI) images
-                multlook1 = f"multi_look_MLI {dir}/{filenameHH}_HH_grd {dir}/{filenameHH}_HH_grd.par {dir}/{filenameHH}_HH_grd_mli {dir}/{filenameHH}_HH_grd_mli.par 2 2 - - -"
-                os.system(multlook1)
+                multilook = f"multi_look_MLI {dir}/{filenameHH}_HH_grd {dir}/{filenameHH}_HH_grd.par {dir}/{filenameHH}_HH_grd_mli {dir}/{filenameHH}_HH_grd_mli.par 2 2 - - -"
+                os.system(multilook)
 
                 #Calculate terrain-geocoding lookup table and DEM derived data products
                 gc_map = f"gc_map {dir}/{filenameHH}_HH_grd_mli.par - {dem_par} {dem} {dir}/{filename}_dem_seg_geo.par {dir}/{filename}_dem_seg_geo {dir}/{filename}_lut_init 1.0 1.0 - - - {dir}/{filename}_inc_geo - {dir}/{filename}_pix_geo {dir}/{filename}_ls_map_geo 8 2 -"
@@ -103,27 +110,27 @@ def processGRD():
                 mli_samples = subprocess.check_output(f"grep samples {dir}/{filenameHH}_HH_grd_mli.par", shell=True)
                 mli_samples = str(mli_samples).replace("\n'","").split(' ')[-1][:-3]
                 print("MLI Samples:", mli_samples)
-                product1 = f"product {dir}/{filenameHH}_HH_grd_mli {dir}/{filename}_pix_fine {dir}/{filenameHH}_HH_grd_mli_pan {mli_samples} 1 1 -"
-                os.system(product1)
+                product = f"product {dir}/{filenameHH}_HH_grd_mli {dir}/{filename}_pix_fine {dir}/{filenameHH}_HH_grd_mli_pan {mli_samples} 1 1 -"
+                os.system(product)
 
                 #Geocoding of image data using a geocoding lookup table
                 dem_samples = subprocess.check_output(f"grep width {dir}/{filename}_dem_seg_geo.par", shell=True)
                 dem_samples = str(dem_samples).replace("\n'","").split(' ')[-1][:-3]
                 print("DEM Samples:", dem_samples)
-                geocode_back1 = f"geocode_back {dir}/{filenameHH}_HH_grd_mli_pan {mli_samples} {dir}/{filename}_lut_init {dir}/{filenameHH}_HH_grd_mli_pan_geo {dem_samples} - 2 - - - -"
-                os.system(geocode_back1)
+                geocode_back = f"geocode_back {dir}/{filenameHH}_HH_grd_mli_pan {mli_samples} {dir}/{filename}_lut_init {dir}/{filenameHH}_HH_grd_mli_pan_geo {dem_samples} - 2 - - - -"
+                os.system(geocode_back)
 
                 #Compute backscatter coefficient gamma (sigma0)/cos(inc)
-                sigma2gamma1 = f"sigma2gamma {dir}/{filenameHH}_HH_grd_mli_pan_geo {dir}/{filename}_inc_geo {dir}/{filenameHH}_HH_grd_mli_norm_geo {dem_samples}"
-                os.system(sigma2gamma1)
+                sigma2gamma = f"sigma2gamma {dir}/{filenameHH}_HH_grd_mli_pan_geo {dir}/{filename}_inc_geo {dir}/{filenameHH}_HH_grd_mli_norm_geo {dem_samples}"
+                os.system(sigma2gamma)
 
                 #Conversion of data between linear and dB scale
-                linear_to_dB1 = f"linear_to_dB {dir}/{filenameHH}_HH_grd_mli_norm_geo {dir}/{filenameHH}_HH_grd_mli_norm_geo_db {dem_samples} 0 -99"
-                os.system(linear_to_dB1) 
+                linear_to_dB = f"linear_to_dB {dir}/{filenameHH}_HH_grd_mli_norm_geo {dir}/{filenameHH}_HH_grd_mli_norm_geo_db {dem_samples} 0 -99"
+                os.system(linear_to_dB) 
 
                 #convert geocoded data with DEM parameter file to GeoTIFF format (dB)
-                data2geotiff1 = f"data2geotiff {dir}/{filename}_dem_seg_geo.par {dir}/{filenameHH}_HH_grd_mli_norm_geo_db 2 {outdir}/{filenameHH}_HH_grd_mli_norm_geo_db.tif -99" 
-                os.system(data2geotiff1)
+                data2geotiff = f"data2geotiff {dir}/{filename}_dem_seg_geo.par {dir}/{filenameHH}_HH_grd_mli_norm_geo_db 2 {outdir}/{filenameHH}_HH_grd_mli_norm_geo_db.tif -99" 
+                os.system(data2geotiff)
 
                 #Produce different types of geotiffs (unhash lines below if want to create them)
                 #data2geotiff2 = f"data2geotiff {dir}/{filename}_dem_seg_geo.par {dir}/{filename}_inc_geo 2 {outdir}/{filename}_inc_geo.tif -99"
@@ -132,7 +139,7 @@ def processGRD():
                 #os.system(data2geotiff3)
 
                 print("I finished the scene")
-            else: 
+            else:
                 print(f"OSV files have not been downloaded: {dirname}.")
 
 
@@ -197,4 +204,5 @@ processGRD()
 transform_geotiff()
 crop_geotiff()
 move_surplus_files()
+
         
