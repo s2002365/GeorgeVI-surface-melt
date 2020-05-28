@@ -8,10 +8,39 @@ from dbfread import DBF
 from datetime import datetime
 import pandas as pd 
 import numpy as np 
+import argparse 
 
-#root directory containing all of the zonal stats data tables that will be joined 
-rootdir = "/exports/csce/datastore/geos/groups/MSCGIS/s2002365/code/results/backscatter/1920/zonal_stats/"
-outdir = "/exports/csce/datastore/geos/groups/MSCGIS/s2002365/code/results/backscatter/1920/"
+##################################
+# define a command line reader
+
+def getCmdArgs():
+    '''
+    Read commandline arguments
+    '''
+    p = argparse.ArgumentParser(description=("Command line parser"))
+    p.add_argument("--rootdir", dest ="rootdir", type=str, default="/exports/csce/datastore/geos/groups/MSCGIS/s2002365/code/results/backscatter/1920/zonal_stats/", help=("Path to directory with Zonal Stats dbf tables. \nDefault = /1920/zonal_stats/ "))
+    p.add_argument("--outdir", dest ="outdir", type=str, default="/exports/csce/datastore/geos/groups/MSCGIS/s2002365/code/results/backscatter/1920/", help=("Path to directory where files will be output. \nDefault=/1920/ "))
+    p.add_argument("--baseline", dest ="baseline", type=bool, default=False, help=("Set to True if working with the baseline (non-lake areas). \nDefault= False"))
+    p.add_argument("--convert_only", dest ="convert", type=bool, default=False, help=("Set to True if only want to run the DBFtoCSV() function. \nDefault= False"))
+    p.add_argument("--merge_only", dest ="merge", type=bool, default=False, help=("Set to True if only want to run the merge_CSV() function. \nDefault= False"))
+
+    cmdargs = p.parse_args()
+    return cmdargs
+
+####################################################################
+#set local parameters (file paths)
+
+cmdargs=getCmdArgs()
+rootdir = cmdargs.rootdir
+outdir = cmdargs.outdir
+baseline = cmdargs.baseline
+convert_only = cmdargs.convert
+merge_only = cmdargs.merge
+if baseline == True:
+    rootdir = rootdir + 'baseline_ZS/'
+
+####################################################################
+#DEFINE FUNCTIONS 
 
 def DBFtoCSV():
 
@@ -32,6 +61,7 @@ def DBFtoCSV():
                     rows_data.append(data)
                 writer.writerows(rows_data)
  
+##################################
 
 def merge_CSV():
 
@@ -46,7 +76,12 @@ def merge_CSV():
             frames.append(df)
     
     #create data frame of all polygon BS values per date 
-    csv_out = outdir + "1920_all_backscatter.csv"
+    date_str = outdir[-5:-1]
+    if baseline == True:
+        base = '_baseline_'
+    else: 
+        base = ''
+    csv_out = outdir + date_str + base + "_all_backscatter.csv"
     df_all = pd.concat(frames, axis=1, ignore_index=False)
     cols = df_all.columns.tolist()
     sorted_cols = sorted(cols)
@@ -62,17 +97,26 @@ def merge_CSV():
     print(df_all.tail(5))
 
     #create new data frame of BS statistics per date 
-    csv_stats_out = outdir + "1920_stats_backscatter.csv"
+    csv_stats_out = outdir + date_str + base + "_stats_backscatter.csv"
     df_stats = df_all.reindex(['mean', 'max', 'min', 'std'])
     df_stats = df_stats.T
     print(df_stats.head(10))
     df_stats.to_csv(csv_stats_out) #export
    
+####################################################################
 
 #call functions
-DBFtoCSV()
-merge_CSV()
+if convert_only == True and merge_only == True:
+    print('convert_only and merge_only cannot both be set to True. ')
+elif convert_only == True:
+    DBFtoCSV()
+elif merge_only == True:
+    merge_CSV()
+else:
+    DBFtoCSV()
+    merge_CSV()
 
+####################################################################
 
 #Helpful sources 
 #https://stackoverflow.com/questions/32772447/way-to-convert-dbf-to-csv-in-python
